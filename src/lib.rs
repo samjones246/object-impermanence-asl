@@ -1,9 +1,7 @@
-#![no_std]
-
 use asr::{future::next_tick, Process};
 
 asr::async_main!(stable);
-asr::panic_handler!();
+// asr::panic_handler!();
 
 async fn main() {
     // TODO: Set up some general state and settings.
