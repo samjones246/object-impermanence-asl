@@ -45,7 +45,7 @@ split
             return true;
         }
     }
-    if (current.sceneName != old.sceneName && settings["split_scene_" + current.sceneName]) {
+    if (current.sceneName != old.sceneName && settings["split_scene_" + old.sceneName]) {
         return true;
     }
 }
