@@ -1,5 +1,5 @@
 use crate::memory::{Scene, State, Watchers};
-use asr::{future::next_tick, settings::Gui, Process};
+use asr::{file_format::pe, future::next_tick, settings::Gui, Address, Process};
 
 pub mod memory;
 
@@ -38,7 +38,10 @@ async fn main() {
     loop {
         asr::print_message("Connecting to process...");
         let process = Process::wait_attach("Object Impermanence.exe").await;
-        let (module_addr, module_size) = process.wait_module_range("GameAssembly.dll").await;
+        let (module_addr, _) = process.wait_module_range("GameAssembly.dll").await;
+        let module_size: u64 = pe::read_size_of_image(&process, module_addr)
+            .expect("failed to read size of image")
+            .into();
         let mut watchers = Watchers::new();
         watchers
             .init(&process, module_addr, module_size)

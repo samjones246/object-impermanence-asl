@@ -64,6 +64,7 @@ impl Watchers {
         module_addr: Address,
         module_size: u64,
     ) -> Result<(), asr::Error> {
+        asr::print_message("Scanning for signature...");
         let match_addr = SIG_STATIC_BASE
             .wait_scan_process_range(process, (module_addr, module_size))
             .await;
