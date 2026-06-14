@@ -29,7 +29,7 @@ jobs:
           cargo b --release --locked
 
       - name: Release
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           files: target/wasm32-unknown-unknown/release/object_impermanence_autosplitter.wasm
