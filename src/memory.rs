@@ -67,14 +67,15 @@ impl Watchers {
         let match_addr = SIG_STATIC_BASE
             .wait_scan_process_range(process, (module_addr, module_size))
             .await;
+        let match_addr_rel = match_addr.value() - module_addr.value();
         let offset = process.read::<u32>(match_addr + 3)?;
         asr::print_message(&format!(
-            "sig found at: {}, offset: {:#010x}",
-            match_addr, offset
+            "sig found at: GameAssembly.dll+{:#010x}, offset: {:#010x}",
+            match_addr_rel, offset
         ));
         let base_addr = match_addr.value() + 7 + offset as u64 - module_addr.value();
         self.base_addr = Some(base_addr);
-        asr::print_message(&format!("base addr: {:#10x}", base_addr));
+        asr::print_message(&format!("base addr: GameAssembly.dll+{:#10x}", base_addr));
         Result::Ok(())
     }
 
