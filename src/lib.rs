@@ -1,9 +1,11 @@
+use asr::signature::Signature;
 use asr::watcher::{Pair, Watcher};
 use asr::Address;
 use asr::{future::next_tick, settings::Gui, Process};
 
 asr::async_main!(stable);
-// asr::panic_handler!();
+
+const SIG_STATIC_BASE: Signature<21> = Signature::new("48 8B 05 ?? ?? ?? ?? 48 8B 88 B8 00 00 00 48 89 59 18 0F B6 15");
 
 #[derive(Gui)]
 struct Settings {
@@ -52,11 +54,12 @@ impl Default for Checkpoint {
 struct Watchers {
     active_checkpoint: Watcher<Checkpoint>,
     respawn_state: Watcher<u8>,
+    base_addr: Option<u64>,
 }
 
 struct State {
     active_checkpoint: Pair<Checkpoint>,
-    respawn_state: Pair<u8>,
+    respawn_state: Pair<u8>
 }
 
 impl Watchers {
@@ -64,14 +67,26 @@ impl Watchers {
         Self {
             active_checkpoint: Watcher::new(),
             respawn_state: Watcher::new(),
+            base_addr: None,
         }
     }
 
+    async fn init(&mut self, process: &Process, module_addr: Address, module_size: u64) -> Result<(), asr::Error> {
+        let match_addr = SIG_STATIC_BASE.wait_scan_process_range(process, (module_addr, module_size)).await;
+        let offset = process.read::<u32>(match_addr + 3)?;
+        asr::print_message(&format!("sig found at: {}, offset: {:#010x}", match_addr, offset));
+        let base_addr = match_addr.value() + 7 + offset as u64 - module_addr.value();
+        self.base_addr = Some(base_addr);
+        asr::print_message(&format!("base addr: {:#10x}", base_addr));
+        Result::Ok(())
+    }
+
     fn update(&mut self, process: &Process, module_addr: Address) -> Result<(), asr::Error> {
+        let base_addr = self.base_addr.expect("Uninitialized");
         let active_checkpoint_addr = process.read_pointer_path::<u64>(
             module_addr,
             asr::PointerSize::Bit64,
-            &[0x020A8978, 0xB8, 0x18],
+            &[base_addr, 0xB8, 0x18],
         )?;
         let save_key = process.read_string(active_checkpoint_addr + 0x20, 64)?;
         let scene_index = process.read_string(active_checkpoint_addr + 0x18, 64)?;
@@ -84,7 +99,7 @@ impl Watchers {
         let respawn_state = process.read_pointer_path::<u8>(
             module_addr,
             asr::PointerSize::Bit64,
-            &[0x020AB398, 0xB8, 0x68, 0x38],
+            &[base_addr, 0xB8, 0x28, 0x38],
         )?;
         let _ = self.respawn_state.update(Some(respawn_state));
         let _ = self.active_checkpoint.update(Some(active_checkpoint));
@@ -133,13 +148,12 @@ impl StringReader for Process {
 async fn main() {
     let mut settings = Settings::register();
 
-    asr::print_message("Hello, World!");
-
     loop {
         asr::print_message("Connecting to process...");
         let process = Process::wait_attach("Object Impermanence.exe").await;
-        let (module_addr, _) = process.wait_module_range("GameAssembly.dll").await;
+        let (module_addr, module_size) = process.wait_module_range("GameAssembly.dll").await;
         let mut watchers = Watchers::new();
+        watchers.init(&process, module_addr, module_size).await.expect("sig scanning failed");
         process
             .until_closes(async {
                 loop {
